@@ -92,12 +92,48 @@ module.exports = async function handler(req, res) {
       bonus = n;
     }
 
-    res.status(200).json({
-      analysis: parsed.analysis || '사주 분석 결과를 불러오지 못했지만, 오행의 균형을 고려해 번호를 추천했습니다.',
+    const analysis = parsed.analysis || '사주 분석 결과를 불러오지 못했지만, 오행의 균형을 고려해 번호를 추천했습니다.';
+
+    await saveToSupabase({
+      birth_year: year,
+      birth_month: month,
+      birth_day: day,
+      birth_hour: unknownTime ? null : hour,
+      birth_minute: unknownTime ? null : minute,
+      unknown_time: !!unknownTime,
+      gender,
       numbers,
       bonus,
+      analysis,
     });
+
+    res.status(200).json({ analysis, numbers, bonus });
   } catch (err) {
     res.status(500).json({ error: '서버 오류가 발생했습니다: ' + err.message });
   }
 };
+
+// Supabase에 요청/추첨 결과를 기록 (실패해도 사용자 응답은 막지 않음)
+async function saveToSupabase(record) {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) return;
+
+  try {
+    const res = await fetch(`${supabaseUrl}/rest/v1/saju_lotto_requests`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(record),
+    });
+    if (!res.ok) {
+      console.error('Supabase insert failed:', await res.text());
+    }
+  } catch (err) {
+    console.error('Supabase insert error:', err.message);
+  }
+}

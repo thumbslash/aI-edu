@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>로또 번호 추첨기</title>
+<style>
+  * { box-sizing: border-box; }
+
+  :root {
+    --primary: #cc785c;
+    --primary-active: #a9583e;
+    --ink: #141413;
+    --body-strong: #252523;
+    --body: #3d3d3a;
+    --muted: #6c6a64;
+    --muted-soft: #8e8b82;
+    --hairline: #e6dfd8;
+    --canvas: #faf9f5;
+    --surface-card: #efe9de;
+    --surface-cream-strong: #e8e0d2;
+    --surface-dark: #181715;
+    --surface-dark-elevated: #252320;
+    --on-primary: #ffffff;
+    --on-dark: #faf9f5;
+    --on-dark-soft: #a09d96;
+  }
+
+  body {
+    font-family: "StyreneB", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--canvas);
+    color: var(--ink);
+    min-height: 100vh;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .card {
+    background: var(--surface-card);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    padding: 32px;
+    width: 100%;
+    max-width: 480px;
+    text-align: center;
+  }
+
+  h1 {
+    margin: 0 0 4px;
+    font-family: "Tiempos Headline", "Cormorant Garamond", Georgia, serif;
+    font-weight: 400;
+    font-size: 28px;
+    letter-spacing: -0.3px;
+    color: var(--ink);
+  }
+
+  .subtitle {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  .games {
+    margin: 20px 0;
+    min-height: 60px;
+  }
+
+  .game-row {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .ball {
+    width: 42px;
+    height: 42px;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--on-primary);
+    font-weight: 500;
+    font-size: 16px;
+    animation: pop 0.35s ease;
+    background: var(--surface-dark-elevated);
+  }
+
+  .ball.rolling {
+    animation: roll-pulse 0.09s ease-in-out infinite;
+  }
+
+  .ball.locked {
+    animation: lock-in 0.45s cubic-bezier(.34,1.9,.64,1);
+  }
+
+  @keyframes pop {
+    from { transform: scale(0); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  @keyframes roll-pulse {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.12) rotate(6deg); }
+  }
+
+  @keyframes lock-in {
+    0% { transform: scale(0.3) rotate(-25deg); }
+    55% { transform: scale(1.35) rotate(8deg); }
+    75% { transform: scale(0.9) rotate(-4deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+
+  /* 로또 공식 번호대별 색상 — 브랜드 팔레트로 매핑 */
+  .c1 { background: #e8a55a; } /* 1-10 amber */
+  .c2 { background: #5db8a6; } /* 11-20 teal */
+  .c3 { background: var(--primary); } /* 21-30 coral */
+  .c4 { background: var(--muted); }   /* 31-40 muted */
+  .c5 { background: #5db872; } /* 41-45 success green */
+
+  .separator {
+    width: 24px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--muted-soft);
+  }
+
+  .ball.bonus {
+    background: var(--surface-dark);
+    box-shadow: 0 0 0 3px var(--canvas), 0 0 0 5px var(--accent-amber, #e8a55a);
+  }
+
+  .ball.bonus.locked {
+    animation: lock-in-bonus 0.6s cubic-bezier(.34,1.9,.64,1);
+  }
+
+  @keyframes lock-in-bonus {
+    0% { transform: scale(0.2) rotate(-40deg); }
+    50% { transform: scale(1.5) rotate(12deg); box-shadow: 0 0 0 3px var(--canvas), 0 0 22px 6px #e8a55a; }
+    75% { transform: scale(0.85) rotate(-6deg); }
+    100% { transform: scale(1) rotate(0deg); box-shadow: 0 0 0 3px var(--canvas), 0 0 10px 3px #e8a55a; }
+  }
+
+  .suspense {
+    min-height: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    color: var(--primary);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .suspense.show { opacity: 1; }
+
+  .card.shake {
+    animation: shake 0.4s ease;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translate(0, 0); }
+    20% { transform: translate(-6px, 2px); }
+    40% { transform: translate(5px, -3px); }
+    60% { transform: translate(-4px, 3px); }
+    80% { transform: translate(4px, -2px); }
+  }
+
+  .confetti-piece {
+    position: fixed;
+    top: -12px;
+    width: 8px;
+    height: 14px;
+    pointer-events: none;
+    z-index: 9999;
+    animation: confetti-fall linear forwards;
+  }
+
+  @keyframes confetti-fall {
+    to {
+      transform: translateY(110vh) rotate(720deg);
+      opacity: 0.25;
+    }
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  select {
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    font-weight: 500;
+    border-radius: 8px;
+    border: 1px solid var(--hairline);
+    background: var(--canvas);
+    color: var(--ink);
+    height: 40px;
+    cursor: pointer;
+  }
+
+  button {
+    padding: 12px 20px;
+    height: 40px;
+    font-size: 14px;
+    font-family: inherit;
+    font-weight: 500;
+    border-radius: 8px;
+    border: none;
+    background: var(--primary);
+    color: var(--on-primary);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  button:hover { background: var(--primary-active); }
+  button:active { transform: scale(0.97); }
+  button:disabled { background: var(--primary-disabled, #e6dfd8); color: var(--muted); cursor: not-allowed; }
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <h1>로또 6/45 번호 추첨기</h1>
+    <p class="subtitle">1부터 45까지, 중복 없는 6개의 번호 + 보너스 번호를 추첨합니다.</p>
+    <div class="controls">
+      <select id="gameCount">
+        <option value="1">1게임</option>
+        <option value="2">2게임</option>
+        <option value="3">3게임</option>
+        <option value="4">4게임</option>
+        <option value="5">5게임</option>
+      </select>
+      <button id="drawBtn">번호 추첨하기</button>
+    </div>
+    <div class="suspense" id="suspense">두구두구두구...</div>
+    <div class="games" id="games"></div>
+  </div>
+
+<script>
+function ballClass(n) {
+  if (n <= 10) return 'c1';
+  if (n <= 20) return 'c2';
+  if (n <= 30) return 'c3';
+  if (n <= 40) return 'c4';
+  return 'c5';
+}
+
+function drawOneGame() {
+  const nums = new Set();
+  while (nums.size < 7) {
+    nums.add(Math.floor(Math.random() * 45) + 1);
+  }
+  const arr = [...nums];
+  const bonus = arr.pop();
+  arr.sort((a, b) => a - b);
+  return { main: arr, bonus };
+}
+
+function render(games) {
+  const container = document.getElementById('games');
+  container.innerHTML = '';
+  games.forEach(game => {
+    const row = document.createElement('div');
+    row.className = 'game-row';
+    game.main.forEach(n => {
+      const ball = document.createElement('div');
+      ball.className = 'ball ' + ballClass(n);
+      ball.textContent = n;
+      row.appendChild(ball);
+    });
+    const sep = document.createElement('div');
+    sep.className = 'separator';
+    sep.textContent = '+';
+    row.appendChild(sep);
+    const bonusBall = document.createElement('div');
+    bonusBall.className = 'ball bonus ' + ballClass(game.bonus);
+    bonusBall.textContent = game.bonus;
+    row.appendChild(bonusBall);
+    container.appendChild(row);
+  });
+}
+
+// ---- 사운드 효과 ----
+let audioCtx = null;
+function beep(freq, duration, type = 'sine', vol = 0.15, delay = 0) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime + delay);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + delay + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(audioCtx.currentTime + delay);
+  osc.stop(audioCtx.currentTime + delay + duration);
+}
+
+function fanfare() {
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => beep(f, 0.28, 'triangle', 0.18, i * 0.09));
+}
+
+// ---- 컨페티 ----
+const confettiColors = ['#cc785c', '#e8a55a', '#5db8a6', '#5db872', '#d4a017', '#a9583e'];
+function burstConfetti(count = 60) {
+  for (let i = 0; i < count; i++) {
+    const piece = document.createElement('div');
+    piece.className = 'confetti-piece';
+    piece.style.left = Math.random() * 100 + 'vw';
+    piece.style.background = confettiColors[Math.floor(Math.random() * confettiColors.length)];
+    piece.style.animationDuration = (1.4 + Math.random() * 1.2) + 's';
+    piece.style.transform = `rotate(${Math.random() * 360}deg)`;
+    piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+    document.body.appendChild(piece);
+    setTimeout(() => piece.remove(), 3000);
+  }
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ---- 슬롯머신 연출로 공 하나 뽑기 ----
+async function revealBall(ball, finalNumber, rollTime, tickFreq) {
+  ball.classList.add('rolling');
+  const start = Date.now();
+  while (Date.now() - start < rollTime) {
+    ball.textContent = Math.floor(Math.random() * 45) + 1;
+    await sleep(45);
+  }
+  ball.classList.remove('rolling');
+  ball.textContent = finalNumber;
+  ball.classList.add(ballClass(finalNumber));
+  ball.classList.add('locked');
+  beep(tickFreq, 0.12, 'square', 0.12);
+  const card = document.getElementById('card');
+  card.classList.remove('shake');
+  void card.offsetWidth;
+  card.classList.add('shake');
+}
+
+async function animateGame(game, container, fast) {
+  const row = document.createElement('div');
+  row.className = 'game-row';
+  container.appendChild(row);
+
+  const rollTime = fast ? 260 : 550;
+  const balls = [];
+  for (let i = 0; i < 6; i++) {
+    const ball = document.createElement('div');
+    ball.className = 'ball';
+    ball.textContent = '?';
+    row.appendChild(ball);
+    balls.push(ball);
+  }
+
+  for (let i = 0; i < 6; i++) {
+    await revealBall(balls[i], game.main[i], rollTime, 440 + i * 40);
+    await sleep(fast ? 60 : 140);
+  }
+
+  const sep = document.createElement('div');
+  sep.className = 'separator';
+  sep.textContent = '+';
+  row.appendChild(sep);
+
+  const bonusBall = document.createElement('div');
+  bonusBall.className = 'ball bonus';
+  bonusBall.textContent = '?';
+  row.appendChild(bonusBall);
+
+  await sleep(fast ? 150 : 400);
+  await revealBall(bonusBall, game.bonus, rollTime + 150, 880);
+  bonusBall.classList.add('bonus');
+}
+
+document.getElementById('drawBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('drawBtn');
+  const select = document.getElementById('gameCount');
+  const suspense = document.getElementById('suspense');
+  const container = document.getElementById('games');
+
+  const count = parseInt(select.value, 10);
+  const games = [];
+  for (let i = 0; i < count; i++) games.push(drawOneGame());
+
+  btn.disabled = true;
+  select.disabled = true;
+  container.innerHTML = '';
+  suspense.classList.add('show');
+
+  const fast = count > 1;
+  for (const game of games) {
+    await animateGame(game, container, fast);
+  }
+
+  suspense.classList.remove('show');
+  fanfare();
+  burstConfetti(count > 1 ? 90 : 70);
+
+  btn.disabled = false;
+  select.disabled = false;
+});
+
+// 첫 진입 시 1게임 정적으로 표시 (연출 없이)
+render([drawOneGame()]);
+</script>
+</body>
+</html>
